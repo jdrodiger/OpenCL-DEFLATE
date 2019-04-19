@@ -167,7 +167,7 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  toinsert <<= 22;
 	}else if(bestMatchLength < 130){
 	  //277 - 280 four extra bits
-	  inlen = 11;
+	  inLen = 11;
 	  toinsert = 20 + ((bestMatchLength-67)/16);
 	  toinsert <<= 4;
 	  toinsert ^= (bestMatchLength-67)%16;
@@ -175,10 +175,10 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	}else if(bestMatchLength < 258){
 	  //281 - 284 five extra bits
 	  if (bestMatchLength == 130){//this uses four extra bits but it is in the new length
-	    inlen = 12;
+	    inLen = 12;
 	    toinsert = 0xb0f00000;
 	  }else{
-	    inlen = 13;
+	    inLen = 13;
 	    toinsert = 0xc0 + ((bestMatchLength-131)/32);
 	    toinsert <<= 5;
 	    toinsert ^= (bestMatchLength-131)%32;
@@ -186,7 +186,7 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  }
 	}else{
 	  //length 258 code 285 0 extra bits
-	  inlen = 8;
+	  inLen = 8;
 	  toinsert = 0xc5000000;
 	}
         //insert into the output array
@@ -201,9 +201,10 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	    Oloc++;
 	  }
 	}
+	//TODO Check each of these calculations to ensure proper function
 	//distance five bits plus extra bits depending
 	//all distances are five bits not from the other table
-	//up to 13 extra bits //oh no used a short for inserting so not enough bits damn
+	//up to 13 extra bits 
 	if(bestMatchDist < 5){
 	  //0eb
 	  inLen = 5;
@@ -212,34 +213,94 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	}else if(bestMatchDist < 9){
 	  //1eb
 	  inLen = 6;
-	  toinsert = (bestMatchDist-5)/2;
+	  toinsert = 4 + (bestMatchDist-5)/2;
 	  toinsert <<= 1;
 	  toinsert ^= (bestMatchDist-5)%2;
 	  toinsert <<= 26;
 	}else if(bestMatchDist < 17){
 	  //2eb
+	  inLen = 7;
+	  toinsert = 6 + (bestMatchDist-9)/4;
+	  toinsert <<= 2;
+	  toinsert ^= (bestMatchDist-9)%4;
+	  toinsert <<= 25;
 	}else if(bestMatchDist < 33){
 	  //3eb
+	  inLen = 8;
+	  toinsert = 8 + (bestMatchDist-17)/8;
+	  toinsert <<= 3;
+	  toinsert ^= (bestMatchDist-17)%8;
+	  toinsert <<= 24;
 	}else if(bestMatchDist < 65){
 	  //4eb
+	  inLen = 9;
+	  toinsert = 10 + (bestMatchDist-33)/16;
+	  toinsert <<= 4;
+	  toinsert ^= (bestMatchDist-33)%16;
+	  toinsert <<= 23;
 	}else if(bestMatchDist < 129){
 	  //5eb
+	  inLen = 10;
+	  toinsert = 12 + (bestMatchDist-65)/32;
+	  toinsert <<= 5;
+	  toinsert ^= (bestMatchDist-65)%32;
+	  toinsert <<= 22;
 	}else if(bestMatchDist < 257){
 	  //6eb
+	  inLen = 11;
+	  toinsert = 14 + (bestMatchDist-129)/64;
+	  toinsert <<= 6;
+	  toinsert ^= (bestMatchDist-129)%64;
+	  toinsert <<= 21;
 	}else if(bestMatchDist < 513){
 	  //7eb
+	  inLen = 12;
+	  toinsert = 16 + (bestMatchDist-257)/128;
+	  toinsert <<= 7;
+	  toinsert ^= (bestMatchDist-257)%128;
+	  toinsert <<= 20;
 	}else if(bestMatchDist < 1025){
 	  //8eb
+	  inLen = 13;
+	  toinsert = 18 + (bestMatchDist-513)/256;
+	  toinsert <<= 8;
+	  toinsert ^= (bestMatchDist-513)%256;
+	  toinsert <<= 19;
 	}else if(bestMatchDist < 2049){
 	  //9eb
+	  inLen = 14;
+	  toinsert = 20 + (bestMatchDist-1025)/512;
+	  toinsert <<= 9;
+	  toinsert ^= (bestMatchDist-1025)%512;
+	  toinsert <<= 18;
 	}else if(bestMatchDist < 4097){
 	  //10eb
+	  inLen = 15;
+	  toinsert = 22 + (bestMatchDist-2049)/1024;
+	  toinsert <<= 10;
+	  toinsert ^= (bestMatchDist-2049)%1024;
+	  toinsert <<= 17;
 	}else if(bestMatchDist < 8193){
 	  //11eb
+	  inLen = 16;
+	  toinsert = 24 + (bestMatchDist-4097)/2048;
+	  toinsert <<= 11;
+	  toinsert ^= (bestMatchDist-4097)%2048;
+	  toinsert <<= 16;
 	}else if(bestMatchDist < 16385){
 	  //12eb
+	  inLen = 17;
+	  toinsert = 26 + (bestMatchDist-8193)/4096;
+	  toinsert <<= 12;
+	  toinsert ^= (bestMatchDist-8193)%4096;
+	  toinsert <<= 15;
 	}else {
 	  //13eb
+	  inLen = 18;
+	  toinsert = 28 + (bestMatchDist-16385)/8192;
+	  toinsert <<= 13;
+	  toinsert ^= (bestMatchDist-16385)%8192;
+	  toinsert <<= 14;
 	}
 
         //insert into the output array
