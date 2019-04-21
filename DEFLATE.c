@@ -15,64 +15,15 @@ char blkHeader; //three bits not necessarily at the byte boundary
 
 char *inFile = "file";
 char *outFile = "outFile.deflate";
-char *lzfile = "lz77.cl"; // will not have lz77 in opencl it will be linear
-char *huffile = "huffman.cl";
+char *lzfile = "lz77.cl"; 
+
 
 FILE *fptr;//the file to compress
 FILE *write_ptr;//the output compressed file
 FILE *lzptr;//the lz77 opencl code
-FILE *hufptr;//the huffman opencl code
 FILE *tstptr;//test pointer pls REMOVE
 
 unsigned char buffer[BLKSIZE];
-
-//this is in a loop:
-  
-  //step one read the contents in the file up to the block size and send to gpu
-  
-  //step two while the first block is processing be sending or reading the next
-  //block of data to the gpu... also could be getting a previous  block back
-
-  //step three after a block is read out of the gpu be sending it to disk
-
-//read bytes right to left !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-/*
-                   Lit Value    Bits        Codes
-                   ---------    ----        -----
-                     0 - 143     8          00110000 through
-                                            10111111
-                   144 - 255     9          110010000 through
-                                            111111111
-                   256 - 279     7          0000000 through
-                                            0010111
-                   280 - 287     8          11000000 through
-                                            11000111
-
- */
-void lz77(unsigned char * B, unsigned char * O,unsigned int N){
-  char * SBp = O; //search buffer pointer
-  int SBs = 0; //search buffer size
-  int lookAhead = 0; //which byte the lookahead is on
-
-  while(lookAhead < N){
-    
-  }
-
-  
-
-  /*pseudo code for linear implementation
-    while look-ahead buffer is not empty
-      go backwards in search buffer to find longest match of look ahead buffer
-      if match found
-        print offset from boundary length of match next symbol in la
-        shift window by length +1
-      else
-        print 0 0 first symbol in look ahead buffer
-        shift window by one
-      fi
-    end while
-   */
-}
 
 int main(int argc, char *argv[])
 {
@@ -115,6 +66,27 @@ int main(int argc, char *argv[])
 
   // Create a command queue
   cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
+  //b1
+  cl_mem b1_mem_obj; //the previous block of data if it exists
+  //b2
+  cl_mem b2_mem_obj; //if its the last or the only block its this one
+  //b3
+  cl_mem b3_mem_obj; //the next block or last if there are two left
+  //o2
+  cl_mem o2_mem_obj; //compressed block from b2
+  //o3
+  cl_mem o3_mem_obj; //compressed block from b3
+  //n1
+  cl_mem n1_mem_obj; //length of first block
+  //n2
+  cl_mem n2_mem_obj; //length of second block //also the length of the compressed block on output
+  //n3
+  cl_mem n3_mem_obj; //length of third block //also the length of the compressed block on output
+  //fblk
+  cl_mem fblk_mem_obj; //indicator of like first block final block ect.
+
+  //create objects in memory
+  
   cl_mem a_mem_obj;
   cl_mem c_mem_obj;
   if(BLKSIZE > len){
@@ -127,7 +99,8 @@ int main(int argc, char *argv[])
     ret = clEnqueueWriteBuffer(command_queue, a_mem_obj, CL_TRUE, 0,
 			       len * sizeof(char), buffer, 0, NULL, NULL);
   }else {
-    //create memor buffer for the block
+    //create memory buffer for the block
+
     a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY, 
 				      BLKSIZE * sizeof(char), NULL, &ret);
     c_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 
@@ -156,7 +129,7 @@ int main(int argc, char *argv[])
   // Execute the OpenCL kernel on the list
   size_t global_item_size = len; // Process the entire lists //number of work groups
   //local cannot be bigger than global (duh) maybe it needs to be a divisor of the length
-  size_t local_item_size = 26; // Process in groups of 64 //number of threads per work group //use 32k as this
+  size_t local_item_size = 26; // Process in groups of 64 //number of threads per work group //use 32k as this or 1024
   ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, 
 			       &global_item_size, &local_item_size, 0, NULL, NULL);
 
@@ -166,7 +139,7 @@ int main(int argc, char *argv[])
   ret = clEnqueueReadBuffer(command_queue, c_mem_obj, CL_TRUE, 0, 
             len * sizeof(char), &C[header_offset], 0, NULL, NULL);
   
-  C[0] = 0x01;//three header bytes followed by nothing for a uncompressed block
+  C[0] = 0x01;//three header bits followed by nothing for a uncompressed block
   
   C[1] = 0x1A;
   C[2] = 0x00;//number of bytes
