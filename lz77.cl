@@ -1,13 +1,15 @@
 //B is the input data O is the output
 //or the size of current chunk of data to be processed
 //N1 is the size of block B1 etc.
-#define MAX_WIN_SIZE = 32786 // this should be the number of threads per work group
+#define MAX_WIN_SIZE = 32768 // this should be the number of threads per work group
 __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__global char *O2,__global char *O3,__global int N1,__global int N2,__global int N3,__global short fblk) {
   //fblk values
   //1 first and final block b2
   //2 first block is b2 final block is b3
   //3 b3 is final block
   //4 b2 final block
+  //5 b2 first b3 not final
+  //6 other
   //this is the kernel which will perform the lz77 compression algaorithm
   //which involves a sliding window and represents data as length distance pairs
   
@@ -30,7 +32,7 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
   if(lid == 0 && grid == 0){
     if(fblk == 1 || fblk == 4){ //if the first block is last blokc
       O2[0] = 0x60;
-    }else if(fblk == 2){// if the second block is last block
+    }else if(fblk == 2 || fblk == 3){// if the second block is last block
       O2[0] = 0x40;
       O3[0] = 0x60;
     }else{//if neither is last block
@@ -64,20 +66,40 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	//it does not because there is nothing which will deal with when the thread starts
 	//in the previous block and then moves into the next one
 	//wait maybe it does??????
-	for(int i = LAloc - (lid+1); i < LAloc; i++){
-	  if(i<0){
-	    if(B1[N1+i] == B2[LAloc+matchLength] && matching){
-	      matchLength++;
-	      atomic_max(&bestMatch,matchLength);
+	if(grid == 0){
+	  for(int i = LAloc - (lid+1); i < LAloc; i++){
+	    if(i<0){
+	      if(B1[N1+i] == B2[LAloc+matchLength] && matching){
+		matchLength++;
+		atomic_max(&bestMatch,matchLength);
+	      }else{
+		matching = 0;
+	      }  
 	    }else{
-	      matching = 0;
-	    }  
-	  }else{
-	    if(B2[i] == B2[LAloc+matchLength] && matching){
-	      matchLength++;
-	      atomic_max(&bestMatch,matchLength);
+	      if(B2[i] == B2[LAloc+matchLength] && matching){
+		matchLength++;
+		atomic_max(&bestMatch,matchLength);
+	      }else{
+		matching = 0;
+	      }
+	    }
+	  }
+	}else if((fblk != 1)&&(fblk != 4)){
+	  for(int i = LAloc - (lid+1); i < LAloc; i++){
+	    if(i<0){
+	      if(B2[N1+i] == B3[LAloc+matchLength] && matching){
+		matchLength++;
+		atomic_max(&bestMatch,matchLength);
+	      }else{
+		matching = 0;
+	      }  
 	    }else{
-	      matching = 0;
+	      if(B3[i] == B3[LAloc+matchLength] && matching){
+		matchLength++;
+		atomic_max(&bestMatch,matchLength);
+	      }else{
+		matching = 0;
+	      }
 	    }
 	  }
 	}
