@@ -423,7 +423,7 @@ int main(int argc, char *argv[])
       // Execute the OpenCL kernel on the list
       size_t global_item_size = 2; // Process the entire lists //number of work groups
       //local cannot be bigger than global (duh) maybe it needs to be a divisor of the length
-      size_t local_item_size = MAX_WIN_SIZE; // Process in groups of 64 //number of threads per work group //use 32k as this or 1024
+      size_t local_item_size = WINSIZE; // Process in groups of 64 //number of threads per work group //use 32k as this or 1024
       ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, 
 				   &global_item_size, &local_item_size, 0, NULL, NULL);
       //get output
