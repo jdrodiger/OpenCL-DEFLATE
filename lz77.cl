@@ -1,8 +1,9 @@
 //B is the input data O is the output
 //or the size of current chunk of data to be processed
 //N1 is the size of block B1 etc.
-#define MAX_WIN_SIZE = 32768 // this should be the number of threads per work group
-__kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__global char *O2,__global char *O3,__global int N1,__global int N2,__global int N3,__global short fblk) {
+#define MAX_WIN_SIZE 32768 // this should be the number of threads per work group
+
+__kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__global unsigned char *B3,__global unsigned char *O2,__global unsigned char *O3,__global int * N1,__global int * N2,__global int * N3,__global short * fblk) {
   //fblk values
   //1 first and final block b2
   //2 first block is b2 final block is b3
@@ -12,32 +13,43 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
   //6 other
   //this is the kernel which will perform the lz77 compression algaorithm
   //which involves a sliding window and represents data as length distance pairs
-  
+  //
+
   int gid = get_global_id(0);//the global id
   int grid = get_group_id(0);//the work group
   int lid = get_local_id(0);//the id within the work group
  
-  __local volatile int winSize = 0; //size of sliding window
-  __local volatile int LAloc = 0;   //index of the beginning of the lookahead
-  __local volatile int Oloc = 0; //the output location
-  __local volatile int bestMatchDist = 0; //the best match found
-  __local volatile int bestMatchLength = 0; //the best match found
+  __local volatile int winSize; //size of sliding window
+  __local volatile int LAloc;   //index of the beginning of the lookahead
+  __local volatile int Oloc; //the output location
+  __local volatile int bestMatchDist; //the best match found
+  __local volatile int bestMatchLength; //the best match found
+
+  //initialize local variables
+  if(lid == 0){
+    winSize = 0;
+    LAloc = 0;
+    Oloc = 0;
+    bestMatchDist = 0;
+    bestMatchLength = 0;
+  }
 
   int matchLength = 0;
   int matchStart = lid;
   short matching = 1;
-  char byteMark = 2;
+  __local unsigned char byteMark;
+  if(lid == 0) byteMark = 3;
 
-  //if its fblk insert 1 then 01 else 0 then 01
+  //if its *fblk insert 1 then 01 else 0 then 01
   if(lid == 0 && grid == 0){
-    if(fblk == 1 || fblk == 4){ //if the first block is last blokc
+    if(*fblk == 1 || *fblk == 4){ //if the first block is last blokc
       O2[0] = 0x60;
-    }else if(fblk == 2 || fblk == 3){// if the second block is last block
+    }else if(*fblk == 2 || *fblk == 3){// if the second block is last block
       O2[0] = 0x40;
       O3[0] = 0x60;
     }else{//if neither is last block
       O2[0] = 0x40;
-      O3[0] = 0x40;
+      O3[0] = 0x60;
     }
   }
 
@@ -50,122 +62,133 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
   /* index when not first block is the blocks size - lid */
   /* index when first block is laloc - lid	         */
   /*******************************************************/
-
-  while (((LAloc < N2)&&(grid == 0)) || ((LAloc < N3)&&(grid == 1))) {
-    if(winSize > 3) {
-      if(lid <= winSize && matching){
-	//loop through from the index of cur thread to end of window
-	//if at a spot is a match atomic_max the match length
-	//also do something to indicate who atomic matched
-	//maybe just check if you(the thread) are the best at the end
-
-	//new idea just set the winsize to zero for first block
-	//if its not the first block simply have negative values go into the preious block
-	
-	//TODO check if this actually works
-	//it does not because there is nothing which will deal with when the thread starts
-	//in the previous block and then moves into the next one
-	//wait maybe it does??????
-	if(grid == 0){
-	  for(int i = LAloc - (lid+1); i < LAloc; i++){
-	    if(i<0){
-	      if(B1[N1+i] == B2[LAloc+matchLength] && matching){
-		matchLength++;
-		atomic_max(&bestMatch,matchLength);
-	      }else{
-		matching = 0;
-	      }  
-	    }else{
-	      if(B2[i] == B2[LAloc+matchLength] && matching){
-		matchLength++;
-		atomic_max(&bestMatch,matchLength);
-	      }else{
-		matching = 0;
-	      }
-	    }
-	  }
-	}else if((fblk != 1)&&(fblk != 4)){
-	  for(int i = LAloc - (lid+1); i < LAloc; i++){
-	    if(i<0){
-	      if(B2[N1+i] == B3[LAloc+matchLength] && matching){
-		matchLength++;
-		atomic_max(&bestMatch,matchLength);
-	      }else{
-		matching = 0;
-	      }  
-	    }else{
-	      if(B3[i] == B3[LAloc+matchLength] && matching){
-		matchLength++;
-		atomic_max(&bestMatch,matchLength);
-	      }else{
-		matching = 0;
-	      }
-	    }
-	  }
-	}
-
-	//if you are the one who made the best match
-	if(matchLength == bestMatch){
-	  //enter length distance pair or whatever
-	  bestMatchDist = matchStart;
-	  bestMatchLength = matchLength;
-	}
-      }
-    }else {
-      winSize++;
+  if(lid == 0 && grid == 1){
+    printf("n3 %d\nfblk %x\n",*N3,*fblk);
+  }
+  if(lid == 0 && grid == 0)
+    printf("laloc %d\n",LAloc);
+  int i = 0;
+  int t = 0;
+  while (((LAloc < *N2)&&(grid == 0)) || ((LAloc < *N3)&&(grid == 1))) {
+    //if(lid == 0){
+    //printf("GRID: %d LALOC: %d\n",grid,LAloc);
+      //}
+    matchLength = 0;
+    if(lid == 0)
       bestMatchLength = 0;
+    if(winSize >= 3) {
+      i = 0;
+      for(t = 0; t < 32; t++){
+	matchStart = lid + (1024*t) + 1;
+	if(matchStart <= winSize && matching){
+	  //so this needs to be done 32 times with 1024 threads  
+	  if(grid == 0){
+	    for(i = LAloc - (matchStart); i < LAloc; i++){
+	      if((i<0)){
+		printf("hmm2 i = %d\n",i);
+		if(B1[*N1+i] == B2[LAloc+matchLength] && matching){
+		  matchLength++;
+		  atomic_max(&bestMatchLength,matchLength);
+		}else{
+		  matching = 0;
+		}  
+	      }else{
+		if(LAloc+matchLength > *N2){
+		  matching = 0;
+		  break;
+		}
+		if(B2[i] == B2[LAloc+matchLength] && matching){
+		  matchLength++;
+		  atomic_max(&bestMatchLength,matchLength);
+		}else{
+		  matching = 0;
+		}
+	      }
+	    }
+	  }else if((*fblk != 1)&&(*fblk != 4)){
+	    for(i = LAloc - (matchStart); i < LAloc; i++){
+	      if(i<0){
+		printf("hmm\n");
+		if(B2[*N2+i] == B3[LAloc+matchLength] && matching){
+		  matchLength++;
+		  atomic_max(&bestMatchLength,matchLength);
+		}else{
+		  matching = 0;
+		}  
+	      }else{
+		if(LAloc+matchLength > *N3)
+		  matching = 0;
+		if(B3[i] == B3[LAloc+matchLength] && (matching == 1)){
+		  matchLength++;
+		  atomic_max(&bestMatchLength,matchLength);
+		}else{
+		  matching = 0;
+		}
+	      }
+	    }
+	  }
+	  if(lid == 0 && grid == 0 && LAloc <= 70)
+	    printf("laloc %d,BML %d\n",LAloc,bestMatchLength);
+	  //if you are the one who made the best match
+	  if(matchLength == bestMatchLength){
+	    //enter length distance pair or whatever
+	    //bestMatchDist = matchStart;
+	    atomic_xchg(&bestMatchDist,matchStart);
+	    //printf("%d\n",bestMatchLength);
+	    //bestMatchLength = matchLength;
+	    matchLength = 0;
+	  }
+	  matchLength = 0;
+	  matching = 1;
+	}
+      } 
+    }else {
+      //winSize++;
+      if(lid == 0){
+	bestMatchLength = 1;
+      }
     }
-    
-    if(lid = 0 && gid == 0) {
+    if(lid == 0 && grid == 0) {
       //this thread adds to the output after match is found
       //both generating the code and inserting it
-      /*
-                   Lit Value    Bits        Codes
-                   ---------    ----        -----
-                     0 - 143     8          00110000 through
-                                            10111111
-                   144 - 255     9          110010000 through
-                                            111111111
-                   256 - 279     7          0000000 through
-                                            0010111
-                   280 - 287     8          11000000 through
-                                            11000111
-      */
-      
-      
-      unsigned int toinsert;//the bits to insert
+      unsigned int toinsert = 0;//the bits to insert
       unsigned char inLen;//how many bits to insert
-      
       if(bestMatchLength < 3){
 	//insert just a literal
 	if(B2[LAloc] < 144){
+	  //printf("in: %c %x\n",B2[LAloc],B2[LAloc]);
 	  toinsert = B2[LAloc] + 0x30;
 	  toinsert <<= 24; //shift so that first bit is on left
 	  inLen = 8;
 	}else{
-	  toinsert = B2[LAloc] + 110010000b;
+	  toinsert = B2[LAloc] + 0x190;
 	  toinsert <<= 23; //shift so that the first bit is in the far left
 	  inLen = 9;
 	}
+
+	
 	//insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O2[Oloc] >>= 1;//shift right one bit
-	  O2[Oloc] = O2[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
-	  if(toinsert & 0x80000000)
+	  O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  if(toinsert & 0x80000000){
 	    O2[Oloc] |= 0x80;
+	  }
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O2[Oloc] = 0;
 	  }
 	}
       }else{
 	//insert length distance codes
 	if(bestMatchLength < 11){ 
-	  //257 - 264 zero extra bits 
+	  //257 - 264 zero extra bits
 	  inLen = 7;
 	  toinsert = bestMatchLength-3;
-	  toinsert <<= 25;//push it to the left
+	  toinsert <<= 26;//push it to the left
 	}else if(bestMatchLength < 19){
 	  //265 - 268 one extra bit
 	  inLen = 8;
@@ -212,21 +235,23 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  toinsert = 0xc5000000;
 	}
         //insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O2[Oloc] >>= 1;//shift right one bit
-	  O2[Oloc] = O2[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
 	  if(toinsert & 0x80000000)
 	    O2[Oloc] |= 0x80;
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O2[Oloc] = 0;
 	  }
 	}
 	//TODO Check each of these calculations to ensure proper function
 	//distance five bits plus extra bits depending
 	//all distances are five bits not from the other table
-	//up to 13 extra bits 
+	//up to 13 extra bits
 	if(bestMatchDist < 5){
 	  //0eb
 	  inLen = 5;
@@ -326,42 +351,34 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	}
 
         //insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O2[Oloc] >>= 1;//shift right one bit
-	  O2[Oloc] = O2[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
 	  if(toinsert & 0x80000000)
 	    O2[Oloc] |= 0x80;
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O2[Oloc] = 0;
 	  }
 	}
       }
       if(winSize < MAX_WIN_SIZE){
-	atomic_add(&winSize,1);//increment win size if its less than the max
+	winSize++;
       }
-      atomic_add(&LAloc,1);//increment the look ahead location by one
+      if(bestMatchLength >= 3)
+	LAloc += bestMatchLength;
+      else
+	LAloc++;
     }
+    //    if(lid == 0 && grid == 1)
+    //      printf("did i reach here\n");
     //this is if there are two blocks being processed at once
-    if(lid = 0 && gid == 1 && !((fblk == 1) || (fblk == 4))) {
-      //this thread adds to the output after match is found
-      //both generating the code and inserting it
-      /*
-                   Lit Value    Bits        Codes
-                   ---------    ----        -----
-                     0 - 143     8          00110000 through
-                                            10111111
-                   144 - 255     9          110010000 through
-                                            111111111
-                   256 - 279     7          0000000 through
-                                            0010111
-                   280 - 287     8          11000000 through
-                                            11000111
-      */
+    if(lid == 0 && grid == 1 && (*fblk != 1) && (*fblk != 4)) {
       
-      
-      unsigned int toinsert;//the bits to insert
+      unsigned int toinsert = 0;//the bits to insert
       unsigned char inLen;//how many bits to insert
       
       if(bestMatchLength < 3){
@@ -371,20 +388,22 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  toinsert <<= 24; //shift so that first bit is on left
 	  inLen = 8;
 	}else{
-	  toinsert = B3[LAloc] + 110010000b;
+	  toinsert = B3[LAloc] + 0x190;
 	  toinsert <<= 23; //shift so that the first bit is in the far left
 	  inLen = 9;
 	}
 	//insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O3[Oloc] >>= 1;//shift right one bit
-	  O3[Oloc] = O3[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  O3[Oloc] = O3[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
 	  if(toinsert & 0x80000000)
 	    O3[Oloc] |= 0x80;
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O3[Oloc] = 0;
 	  }
 	}
       }else{
@@ -393,7 +412,7 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  //257 - 264 zero extra bits 
 	  inLen = 7;
 	  toinsert = bestMatchLength-3;
-	  toinsert <<= 25;//push it to the left
+	  toinsert <<= 26;//push it to the left
 	}else if(bestMatchLength < 19){
 	  //265 - 268 one extra bit
 	  inLen = 8;
@@ -440,15 +459,17 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	  toinsert = 0xc5000000;
 	}
         //insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O3[Oloc] >>= 1;//shift right one bit
-	  O3[Oloc] = O3[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  O3[Oloc] = O3[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
 	  if(toinsert & 0x80000000)
 	    O3[Oloc] |= 0x80;
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O3[Oloc] = 0;
 	  }
 	}
 	//TODO Check each of these calculations to ensure proper function
@@ -554,67 +575,97 @@ __kernel void lz77(__global char *B1,__global char *B2,__global char *B3,__globa
 	}
 
         //insert into the output array
-	for(;byteMark<inLen;byteMark++){
+	for(int j = 0;j<inLen;j++){
 	  O3[Oloc] >>= 1;//shift right one bit
-	  O3[Oloc] = O3[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+	  O3[Oloc] = O3[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
 	  if(toinsert & 0x80000000)
 	    O3[Oloc] |= 0x80;
 	  toinsert <<=1;
+	  byteMark++;
 	  if(byteMark == 8){
-	    byteMark == 0;
+	    byteMark = 0;
 	    Oloc++;
+	    O3[Oloc] = 0;
 	  }
 	}
       }
+      //for grid 1
 
-
+      
       if(winSize < MAX_WIN_SIZE){
-	atomic_add(&winSize,1);//increment win size if its less than the max
+	winSize++;
       }
-      atomic_add(&LAloc,1);//increment the look ahead location by one
+      //     printf("this\n");
+      if(bestMatchLength >= 3)
+	LAloc += bestMatchLength;
+      else
+	LAloc++;
     }
   }
+  if(lid == 0 && grid == 1)
+    printf("LAloc: %d\n",LAloc);
   unsigned int toinsert;//the bits to insert
   unsigned char inLen;//how many bits to insert
-  if(lid = 0 && gid == 0) {
+  unsigned short extra = 0;
+  if(lid == 0 && grid == 0) {
     toinsert = 0;
     inLen = 7;
-    for(;byteMark<inLen;byteMark++){
+    for(int j = 0;j<inLen;j++){
       O2[Oloc] >>= 1;//shift right one bit
-      O2[Oloc] = O2[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+      O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
       if(toinsert & 0x80000000)
 	O2[Oloc] |= 0x80;
       toinsert <<=1;
+      byteMark++;
       if(byteMark == 8){
-	byteMark == 0;
+	byteMark = 0;
 	Oloc++;
       }
     }
-    if(byteMark != 0)
-      O2[Oloc] = 0;
+    
+    extra = byteMark;
+    if(byteMark == 0){
+      Oloc--;
+    }else
+    for(;byteMark<8;byteMark++)
+      O2[Oloc] >>= 1;
+    printf("O2olocend: %x,%x,%x\n",O2[Oloc-2],O2[Oloc-1],O2[Oloc]);
+
   }
-  if(lid = 0 && gid == 1 && !((fblk == 1) || (fblk == 4))) {
+  if(lid == 0 && grid == 1 && !((*fblk == 1) || (*fblk == 4))) {
     toinsert = 0;
     inLen = 7;
-    for(;byteMark<inLen;byteMark++){
+    for(int j = 0;j<inLen;j++){
       O3[Oloc] >>= 1;//shift right one bit
-      O3[Oloc] = O3[LAloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
+      O3[Oloc] = O3[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
       if(toinsert & 0x80000000)
 	O3[Oloc] |= 0x80;
       toinsert <<=1;
+      byteMark++;
       if(byteMark == 8){
-	byteMark == 0;
+	byteMark = 0;
 	Oloc++;
       }
     }
-    if(byteMark != 0)
-      O2[Oloc] = 0;
+    extra = byteMark;
+    if(byteMark == 0){
+      Oloc--;
+    }else
+      for(;byteMark<8;byteMark++)
+	O3[Oloc] >>= 1;
+    printf("O3olocend: %x,%x,%x\n",O3[Oloc-2],O3[Oloc-1],O3[Oloc]);
   }
-  //setlengths of output
-  if(lid == 0 && gid == 0){
-    N2 = Oloc;
+  //setlengths of output and the number of bits off each subsequent block should be shifted
+  if(lid == 0 && grid == 0){
+    printf("oloc %d\n",Oloc);
+    printf("extra2 %x\n",extra);
+    *N2 = Oloc+1;
+    *fblk |= extra<<8;
   }
-  if(lid = 0 && gid == 1 && !((fblk == 1) || (fblk == 4))) {
-    N2 = Oloc;
+  if(lid == 0 && grid == 1 && !((*fblk == 1) || (*fblk == 4))) {
+    printf("oloc %d\n",Oloc);
+    printf("extra3 %x\n",extra);
+    *N3 = Oloc+1;
+    *fblk |= extra<<12;
   }
 }
