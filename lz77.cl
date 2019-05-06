@@ -65,8 +65,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
   //  if(lid == 0 && grid == 1){
   //    printf("n3 %d\nfblk %x\n",*N3,*fblk);
   //  }
-  if(lid == 0 && grid == 0)
-    printf("laloc %d\n",LAloc);
+
   int i = 0;
   int t = 0;
   while ((LAloc < *N2)&&(grid == 0)) {
@@ -104,12 +103,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
 		  matching = 0;
 		  break;
 		}
-		if(i < 0)
-		  printf("ilesszero\n");
-		if(i > *N2)
-		  printf("igratern2\n");
-		if( LAloc+matchLength > *N2)
-		  printf("prolems\n");
+
 		//		printf("i %d  LAloc+matchlength %d\n",i,LAloc+matchLength);
 		if(B2[i] == B2[LAloc+matchLength] && matching){
 		  matchLength++;
@@ -143,10 +137,10 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
     }
     if(lid == 0 && grid == 0) {
       char printthis = 0;
-      if(LAloc <= 1675){
-	printthis = 1;
-	printf("inserting: LAloc %d  bestMatchLength  %d  bestMatchDist %d  oloc %d  char %c\n",LAloc,bestMatchLength,bestMatchDist,Oloc,B2[LAloc]);
-      }
+      //      if(LAloc <= 1675){
+      //	printthis = 1;
+      //	printf("inserting: LAloc %d  bestMatchLength  %d  bestMatchDist %d  oloc %d  char %c\n",LAloc,bestMatchLength,bestMatchDist,Oloc,B2[LAloc]);
+      //      }
       //this thread adds to the output after match is found
       //both generating the code and inserting it
       unsigned int toinsert = 0;//the bits to insert
@@ -241,10 +235,6 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
 	  toinsert = 0xc5000000;
 	}
         //insert into the output array
-	if(printthis)
-	  printf("length code: %x\n",toinsert);
-	if(Oloc == 1293 || Oloc == 1294 || Oloc == 1295)
-	  printf("length code: %x\n",toinsert);
 	for(int j = 0;j<inLen;j++){
 	  O2[Oloc] >>= 1;//shift right one bit
 	  O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
@@ -280,8 +270,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
 	//distance five bits plus extra bits depending
 	//all distances are five bits not from the other table
 	//up to 13 extra bits
-	if(bestMatchDist >= winSize)
-	  printf("Laloc %d, winsize %d, dist %d\n",LAloc,winSize,bestMatchDist);
+	
 	if(bestMatchDist < 5){
 	  //0eb
 	  inLen = 5;
@@ -393,16 +382,9 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
 	}
 	//check what each begginging code is and what the extra bits are and if they match
 	//printf("code %d, length %d\n",(toinsert>>27),bestMatchDist);
-	if(LAloc > 28428)
-	  printf("theoterthing\n");
-	if ( LAloc - bestMatchDist <= 0)
-	  printf("it was this one\n");
+
 
         //insert into the output array
-	if(printthis)
-	  printf("dist code: %x\n",toinsert);
-	if(Oloc == 1293 || Oloc == 1294 || Oloc == 1295)
-	  printf("dist: %d, dist code: %x, Inlen: %d\n",bestMatchDist,toinsert,inLen);
 	for(int j = 0;j<inLen;j++){
 	  O2[Oloc] >>= 1;//shift right one bit
 	  O2[Oloc] = O2[Oloc] & 0x7f; //set bit to zero //this is maybe not needed but im being safe
@@ -447,8 +429,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
     //      printf("did i reach here\n");
     //this is if there are two blocks being processed at once
   //  printf("gothere\n");
-  if(lid == 0)
-    printf("LAloc: %d\n",LAloc);
+
   unsigned int toinsert;//the bits to insert
   unsigned char inLen;//how many bits to insert
   unsigned short extra = 0;
@@ -464,7 +445,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
       byteMark++;
       if(byteMark == 8){
 	byteMark = 0;
-	printf("oloc %d\n",Oloc);
+	//printf("oloc %d\n",Oloc);
 	Oloc++;
       }
     }
@@ -473,16 +454,16 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
     if(byteMark == 0){
       Oloc--;
     }else
-    for(;byteMark<8;byteMark++)
-      O2[Oloc] >>= 1;
-    printf("O2olocend: %x,%x,%x\n",O2[Oloc-2],O2[Oloc-1],O2[Oloc]);
+      for(;byteMark<8;byteMark++)
+	O2[Oloc] >>= 1;
+    // printf("O2olocend: %x,%x,%x\n",O2[Oloc-2],O2[Oloc-1],O2[Oloc]);
 
   }
   //setlengths of output and the number of bits off each subsequent block should be shifted
   if(lid == 0 && grid == 0){
-    printf("oloc %d\n",Oloc);
-    printf("extra2 %x\n",extra);
+    //printf("oloc %d\n",Oloc);
+    //printf("extra2 %x\n",extra);
     *N2 = Oloc+1;
-    *fblk |= extra<<8;
+    *fblk = extra;
   }
 }
