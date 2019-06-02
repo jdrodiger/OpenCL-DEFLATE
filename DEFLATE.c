@@ -13,6 +13,13 @@
 /* You should have received a copy of the GNU General Public License      */
 /* along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 /**************************************************************************/
+
+/**********************/
+/*  DEFLATE.c         */
+/*  By James Rodiger  */
+/*  May 6, 2019       */
+/**********************/
+
 #include <stdio.h>
 #include <unistd.h>
 

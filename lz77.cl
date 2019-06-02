@@ -12,6 +12,13 @@
 /* You should have received a copy of the GNU General Public License      */
 /* along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 /**************************************************************************/
+
+/**********************/
+/*  LZ77.cl           */
+/*  By James Rodiger  */
+/*  May 6, 2019       */
+/**********************/
+
 //B is the input data O is the output
 //or the size of current chunk of data to be processed
 //N1 is the size of block B1 etc.
@@ -280,7 +287,7 @@ __kernel void lz77(__global unsigned char *B1,__global unsigned char *B2,__globa
 	}
 	extrabits = 0; //the extra bits to be inserted in reverse
 	eblen = 0; //the number of extra bits
-	//TODO Check each of these calculations to ensure proper function
+        
 	//distance five bits plus extra bits depending
 	//all distances are five bits not from the other table
 	//up to 13 extra bits
